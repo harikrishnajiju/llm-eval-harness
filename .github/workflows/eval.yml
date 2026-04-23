@@ -1,0 +1,48 @@
+name: Eval CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run unit tests (mocked LLM)
+        run: pytest tests/ -v --tb=short
+        env:
+          USE_HF_JUDGE: "true"
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          DB_PATH: ":memory:"
+          API_KEY: "ci-test-key"
+
+      - name: Smoke eval (5 samples, HF judge)
+        run: python scripts/smoke_eval.py
+        env:
+          USE_HF_JUDGE: "true"
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          N_SAMPLES: "5"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: railway/deploy-action@v1
+        with:
+          service: llm-eval-harness
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
