@@ -8,6 +8,16 @@ CORS is left open (no browser client in this project).
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
+
+# Load .env before anything else reads environment variables
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).parent.parent / ".env"
+    load_dotenv(_env_path)
+except ImportError:
+    pass  # python-dotenv not installed; rely on shell environment
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI

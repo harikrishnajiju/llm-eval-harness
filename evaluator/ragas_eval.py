@@ -4,18 +4,27 @@ Ragas evaluator — scores RAG pipeline outputs using three metrics:
   context_precision  — are the retrieved chunks relevant to the question?
   answer_relevancy   — does the answer actually address the question?
   faithfulness       — is the answer grounded in the retrieved context?
+
+Compatible with Ragas 0.4.x and LangChain.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import nest_asyncio
 
 from datasets import Dataset  # type: ignore
 from ragas import evaluate  # type: ignore
-from ragas.metrics.collections import AnswerRelevancy, ContextPrecision, Faithfulness  # type: ignore
+from ragas.metrics import faithfulness, answer_relevancy, context_precision  # type: ignore
+from ragas.llms import LangchainLLMWrapper
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from ragas.run_config import RunConfig
 
 logger = logging.getLogger(__name__)
+
+# Apply nest_asyncio to allow Ragas to run its own event loop inside FastAPI
+nest_asyncio.apply()
 
 
 def _get_judge_llm(llm_judge=None):
@@ -67,11 +76,6 @@ def run_ragas_eval(
               "answer_relevancy":  0.76,
               "faithfulness":      0.91,
           }
-
-    Notes:
-        - Ragas can fail on individual rows if the LLM returns malformed JSON.
-          Such rows are skipped; the scores are averaged over successful rows.
-        - If all rows fail, returns NaN scores rather than raising.
     """
     if not pipeline_outputs:
         logger.warning("run_ragas_eval called with empty pipeline_outputs")
@@ -85,24 +89,29 @@ def run_ragas_eval(
     hf_dataset = Dataset.from_list(pipeline_outputs)
 
     judge_llm = _get_judge_llm(llm_judge)
-
-    # Ragas v0.4+ requires llm at metric construction time
-    metric_kwargs: dict = {}
-    if judge_llm is not None:
-        metric_kwargs["llm"] = judge_llm
-    if embeddings is not None:
-        metric_kwargs["embeddings"] = embeddings
+    
+    # Wrap LangChain objects for Ragas compatibility
+    ragas_llm = LangchainLLMWrapper(judge_llm) if judge_llm else None
+    ragas_embeddings = LangchainEmbeddingsWrapper(embeddings) if embeddings else None
 
     metrics = [
-        ContextPrecision(**metric_kwargs),
-        AnswerRelevancy(**metric_kwargs),
-        Faithfulness(**metric_kwargs),
+        context_precision,
+        answer_relevancy,
+        faithfulness,
     ]
 
-    eval_kwargs: dict = {"dataset": hf_dataset, "metrics": metrics}
+    # Configure Ragas to be more patient with local Ollama
+    run_config = RunConfig(timeout=360, max_workers=2)
 
     try:
-        result = evaluate(**eval_kwargs)
+        # evaluate() is synchronous and handles its own loop (via nest_asyncio)
+        result = evaluate(
+            dataset=hf_dataset,
+            metrics=metrics,
+            llm=ragas_llm,
+            embeddings=ragas_embeddings,
+            run_config=run_config,
+        )
         df = result.to_pandas()
 
         scores: dict[str, float] = {}
