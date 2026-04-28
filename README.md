@@ -14,6 +14,7 @@ Run **Ragas** metrics against **Llama 3** locally, A/B test prompt variants, and
 ## 🌟 Features
 
 - **Local Inference:** Fully integrated with **Ollama** for private, local LLM execution.
+- **Cloud Judge (Optional):** Dramatically speed up evaluation bottlenecks by offloading Ragas scoring to **OpenAI**, while keeping document generation local.
 - **Modern Evaluation:** Uses **Ragas 0.4.x** modern component architecture for high-fidelity scoring.
 - **A/B Testing:** Easily compare `default`, `concise`, and `Chain-of-Thought (CoT)` prompt variants.
 - **Asynchronous Pipeline:** Background task execution for evaluation runs with persistent storage.
@@ -76,6 +77,8 @@ uvicorn api.main:app --reload --port 8000 --loop asyncio
 
 ### 🚀 Trigger an Evaluation Run
 
+You can use the built-in UI (see above) or use the API:
+
 ```bash
 curl -X POST http://localhost:8000/runs \
   -H "X-API-Key: your-secure-secret-key" \
@@ -83,9 +86,12 @@ curl -X POST http://localhost:8000/runs \
   -d '{
     "model_name": "llama3",
     "prompt_variant": "cot",
-    "n_samples": 5
+    "n_samples": 5,
+    "judge_provider": "openai",
+    "openai_api_key": "sk-..."
   }'
 ```
+*(Note: `judge_provider` and `openai_api_key` are optional. If omitted, the evaluation runs entirely locally on Ollama).*
 
 ### 📈 Monitor Results
 

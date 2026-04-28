@@ -24,6 +24,14 @@ class EvalRequest(BaseModel):
         le=200,
         description="Number of SQuAD samples to evaluate. Must be between 5 and 200.",
     )
+    judge_provider: Literal["ollama", "openai"] = Field(
+        default="ollama",
+        description="LLM provider to use for Ragas scoring. 'openai' is much faster.",
+    )
+    openai_api_key: str | None = Field(
+        default=None,
+        description="Required if judge_provider is 'openai'.",
+    )
 
 
 class RunStatus(BaseModel):

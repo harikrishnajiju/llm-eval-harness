@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Eval Harness Dashboard</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <h1>Eval Harness</h1>
+            <div class="api-keys-group" style="display: flex; gap: 1rem; align-items: center;">
+                <div class="api-key-container">
+                    <input type="password" id="apiKeyInput" placeholder="App API Key" aria-label="App API Key">
+                </div>
+                <div class="api-key-container">
+                    <input type="password" id="openaiKeyInput" placeholder="OpenAI API Key (Optional)" aria-label="OpenAI API Key">
+                </div>
+                <button id="saveApiKeyBtn">Save Keys</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="trigger-section card">
+            <h2>Trigger New Evaluation</h2>
+            <form id="evalForm">
+                <div class="form-group">
+                    <label for="modelName">Model Name</label>
+                    <input type="text" id="modelName" value="llama3" required>
+                </div>
+                <div class="form-group">
+                    <label for="judgeProvider">Judge Provider</label>
+                    <select id="judgeProvider" required>
+                        <option value="ollama">Ollama (Local - Slow)</option>
+                        <option value="openai">OpenAI (Cloud - Fast)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="promptVariant">Prompt Variant</label>
+                    <select id="promptVariant" required>
+                        <option value="default">Default</option>
+                        <option value="concise">Concise</option>
+                        <option value="cot">Chain of Thought (CoT)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="nSamples">Samples</label>
+                    <input type="number" id="nSamples" value="5" min="1" max="100" required>
+                </div>
+                <button type="submit" id="triggerBtn">Start Evaluation</button>
+            </form>
+            <div id="triggerFeedback" class="feedback-msg"></div>
+        </section>
+
+        <section class="dashboard-section card">
+            <h2>Recent Runs</h2>
+            <div class="table-container">
+                <table id="runsTable">
+                    <thead>
+                        <tr>
+                            <th>Run ID</th>
+                            <th>Status</th>
+                            <th>Model / Variant</th>
+                            <th>Samples</th>
+                            <th>Context Precision</th>
+                            <th>Answer Relevancy</th>
+                            <th>Faithfulness</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="runsTableBody">
+                        <!-- Runs will be dynamically injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

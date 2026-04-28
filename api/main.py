@@ -21,6 +21,7 @@ except ImportError:
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from api.routes import router
 from storage.database import init_db
@@ -54,3 +55,7 @@ app = FastAPI(
 )
 
 app.include_router(router)
+
+# Mount the static frontend
+# Ensures the UI is served at the root (http://localhost:8000/)
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

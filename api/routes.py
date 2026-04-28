@@ -89,10 +89,19 @@ async def _run_eval(run_id: str, request: EvalRequest) -> None:
 
         # --- Phase 3: Ragas evaluation ---
         from evaluator.ragas_eval import run_ragas_eval
-        from langchain_ollama import ChatOllama  # type: ignore
 
-        llm_judge = ChatOllama(model=request.model_name, base_url=_OLLAMA_BASE_URL)
-        metrics = run_ragas_eval(pipeline_outputs, llm_judge=llm_judge, embeddings=embeddings)
+        if getattr(request, "judge_provider", "ollama") == "openai":
+            if not getattr(request, "openai_api_key", None):
+                raise ValueError("openai_api_key is required when judge_provider is 'openai'")
+            from langchain_openai import ChatOpenAI, OpenAIEmbeddings # type: ignore
+            llm_judge = ChatOpenAI(model="gpt-4o-mini", api_key=request.openai_api_key)
+            eval_embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=request.openai_api_key)
+        else:
+            from langchain_ollama import ChatOllama  # type: ignore
+            llm_judge = ChatOllama(model=request.model_name, base_url=_OLLAMA_BASE_URL)
+            eval_embeddings = embeddings
+
+        metrics = run_ragas_eval(pipeline_outputs, llm_judge=llm_judge, embeddings=eval_embeddings)
 
         duration = time.monotonic() - start
 
