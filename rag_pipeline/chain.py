@@ -55,6 +55,8 @@ def build_rag_chain(
     prompt_variant: str = "default",
     model_name: str = "llama3",
     ollama_base_url: str = "http://localhost:11434",
+    generator_provider: str = "ollama",
+    openai_api_key: str | None = None,
 ) -> RetrievalQA:
     """
     Build a LangChain RetrievalQA chain backed by Ollama and FAISS.
@@ -77,7 +79,14 @@ def build_rag_chain(
             f"Must be one of: {sorted(_VALID_VARIANTS)}"
         )
 
-    llm = ChatOllama(model=model_name, base_url=ollama_base_url)
+    if generator_provider == "openai":
+        if not openai_api_key:
+            raise ValueError("openai_api_key is required when generator_provider is 'openai'")
+        from langchain_openai import ChatOpenAI  # type: ignore
+        llm = ChatOpenAI(model=model_name, api_key=openai_api_key)
+    else:
+        llm = ChatOllama(model=model_name, base_url=ollama_base_url)
+
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
     prompt = PromptTemplate(

@@ -49,59 +49,59 @@ async def verify_api_key(x_api_key: str = Header(...)) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _run_blocking_eval(request: EvalRequest) -> dict:
+    """Synchronous function holding the heavy, blocking LangChain/Ragas code."""
+    # --- Phase 1: Load dataset ---
+    from data_loader.hf_dataset import load_qa_dataset
+    dataset_rows = load_qa_dataset(n_samples=request.n_samples)
+
+    # --- Phase 2: RAG pipeline ---
+    from rag_pipeline.embeddings import get_embeddings
+    from rag_pipeline.vectorstore import build_vectorstore
+    from rag_pipeline.chain import build_rag_chain, run_pipeline
+
+    embeddings = get_embeddings()
+    contexts = [row["context"] for row in dataset_rows]
+    vectorstore = build_vectorstore(contexts, embeddings)
+
+    chain = build_rag_chain(
+        vectorstore=vectorstore,
+        prompt_variant=request.prompt_variant,
+        model_name=request.model_name,
+        ollama_base_url=_OLLAMA_BASE_URL,
+        generator_provider=getattr(request, "generator_provider", "ollama"),
+        openai_api_key=getattr(request, "openai_api_key", None),
+    )
+
+    pipeline_outputs = run_pipeline(chain, dataset_rows)
+
+    # --- Phase 3: Ragas evaluation ---
+    from evaluator.ragas_eval import run_ragas_eval
+
+    if getattr(request, "judge_provider", "ollama") == "openai":
+        if not getattr(request, "openai_api_key", None):
+            raise ValueError("openai_api_key is required when judge_provider is 'openai'")
+        from langchain_openai import ChatOpenAI, OpenAIEmbeddings # type: ignore
+        llm_judge = ChatOpenAI(model="gpt-4o-mini", api_key=request.openai_api_key)
+        eval_embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=request.openai_api_key)
+    else:
+        from langchain_ollama import ChatOllama  # type: ignore
+        llm_judge = ChatOllama(model=request.model_name, base_url=_OLLAMA_BASE_URL)
+        eval_embeddings = embeddings
+
+    return run_ragas_eval(pipeline_outputs, llm_judge=llm_judge, embeddings=eval_embeddings)
+
+
 async def _run_eval(run_id: str, request: EvalRequest) -> None:
     """
     Full eval pipeline executed as a FastAPI BackgroundTask.
-
-    Flow:
-      1. Load dataset
-      2. Build embeddings + FAISS vector store
-      3. Build RAG chain
-      4. Run pipeline
-      5. Score with Ragas
-      6. Persist results to SQLite
+    Offloads heavy synchronous code to a thread pool to avoid blocking the event loop.
     """
+    import asyncio
     start = time.monotonic()
 
     try:
-        # --- Phase 1: Load dataset ---
-        from data_loader.hf_dataset import load_qa_dataset
-
-        dataset_rows = load_qa_dataset(n_samples=request.n_samples)
-
-        # --- Phase 2: RAG pipeline ---
-        from rag_pipeline.embeddings import get_embeddings
-        from rag_pipeline.vectorstore import build_vectorstore
-        from rag_pipeline.chain import build_rag_chain, run_pipeline
-
-        embeddings = get_embeddings()
-        contexts = [row["context"] for row in dataset_rows]
-        vectorstore = build_vectorstore(contexts, embeddings)
-
-        chain = build_rag_chain(
-            vectorstore=vectorstore,
-            prompt_variant=request.prompt_variant,
-            model_name=request.model_name,
-            ollama_base_url=_OLLAMA_BASE_URL,
-        )
-
-        pipeline_outputs = run_pipeline(chain, dataset_rows)
-
-        # --- Phase 3: Ragas evaluation ---
-        from evaluator.ragas_eval import run_ragas_eval
-
-        if getattr(request, "judge_provider", "ollama") == "openai":
-            if not getattr(request, "openai_api_key", None):
-                raise ValueError("openai_api_key is required when judge_provider is 'openai'")
-            from langchain_openai import ChatOpenAI, OpenAIEmbeddings # type: ignore
-            llm_judge = ChatOpenAI(model="gpt-4o-mini", api_key=request.openai_api_key)
-            eval_embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=request.openai_api_key)
-        else:
-            from langchain_ollama import ChatOllama  # type: ignore
-            llm_judge = ChatOllama(model=request.model_name, base_url=_OLLAMA_BASE_URL)
-            eval_embeddings = embeddings
-
-        metrics = run_ragas_eval(pipeline_outputs, llm_judge=llm_judge, embeddings=eval_embeddings)
+        metrics = await asyncio.to_thread(_run_blocking_eval, request)
 
         duration = time.monotonic() - start
 

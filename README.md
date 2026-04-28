@@ -14,6 +14,7 @@ Run **Ragas** metrics against **Llama 3** locally, A/B test prompt variants, and
 ## 🌟 Features
 
 - **Local Inference:** Fully integrated with **Ollama** for private, local LLM execution.
+- **Universal Benchmarking:** Benchmark your local models (Ollama) against cloud models (OpenAI) for both generation and evaluation.
 - **Cloud Judge (Optional):** Dramatically speed up evaluation bottlenecks by offloading Ragas scoring to **OpenAI**, while keeping document generation local.
 - **Modern Evaluation:** Uses **Ragas 0.4.x** modern component architecture for high-fidelity scoring.
 - **A/B Testing:** Easily compare `default`, `concise`, and `Chain-of-Thought (CoT)` prompt variants.

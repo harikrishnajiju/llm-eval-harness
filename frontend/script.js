@@ -9,6 +9,8 @@ const evalForm = document.getElementById('evalForm');
 const triggerBtn = document.getElementById('triggerBtn');
 const triggerFeedback = document.getElementById('triggerFeedback');
 const runsTableBody = document.getElementById('runsTableBody');
+const generatorProvider = document.getElementById('generatorProvider');
+const modelNameInput = document.getElementById('modelName');
 
 // State
 let pollingInterval = null;
@@ -26,6 +28,15 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKeyInput.value = savedKey;
         fetchRuns();
         startPolling();
+    }
+});
+
+// Handle Provider Change
+generatorProvider.addEventListener('change', () => {
+    if (generatorProvider.value === 'openai') {
+        modelNameInput.value = 'gpt-4o-mini';
+    } else {
+        modelNameInput.value = 'llama3';
     }
 });
 
@@ -61,15 +72,17 @@ evalForm.addEventListener('submit', async (e) => {
     }
 
     const judgeProvider = document.getElementById('judgeProvider').value;
+    const genProvider = generatorProvider.value;
     const openaiKey = localStorage.getItem('eval_openai_api_key');
 
-    if (judgeProvider === 'openai' && !openaiKey) {
-        showFeedback('OpenAI API Key is required when using OpenAI judge.', 'error');
+    if ((judgeProvider === 'openai' || genProvider === 'openai') && !openaiKey) {
+        showFeedback('OpenAI API Key is required for cloud generation/judging.', 'error');
         return;
     }
 
     const payload = {
-        model_name: document.getElementById('modelName').value.trim(),
+        model_name: modelNameInput.value.trim(),
+        generator_provider: genProvider,
         judge_provider: judgeProvider,
         openai_api_key: openaiKey || null,
         prompt_variant: document.getElementById('promptVariant').value.trim(),
@@ -91,7 +104,16 @@ evalForm.addEventListener('submit', async (e) => {
 
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.detail || 'Failed to start evaluation');
+            let msg = 'Failed to start evaluation';
+            if (err.detail) {
+                if (Array.isArray(err.detail)) {
+                    // Extract readable messages from Pydantic validation errors
+                    msg = err.detail.map(d => d.msg).join(', ');
+                } else if (typeof err.detail === 'string') {
+                    msg = err.detail;
+                }
+            }
+            throw new Error(msg);
         }
 
         showFeedback('Evaluation started successfully!', 'success');
@@ -143,7 +165,7 @@ function renderRuns(runs) {
     }
 
     runsTableBody.innerHTML = runs.map(run => {
-        const shortId = run.run_id.split('-')[0];
+        const shortId = run.run_id.substring(0, 8);
         
         // Format metrics
         let cp = '-', ar = '-', f = '-';
@@ -158,7 +180,7 @@ function renderRuns(runs) {
 
         return `
             <tr>
-                <td class="run-id" title="${run.run_id}">${shortId}...</td>
+                <td class="run-id" title="${run.run_id}" style="cursor: help; border-bottom: 1px dotted #ccc;">${shortId}...</td>
                 <td><span class="status-badge status-${run.status}">${run.status}</span></td>
                 <td>${run.model_name} <br> <small style="color:#666;">(${run.prompt_variant})</small></td>
                 <td>${run.n_samples}</td>

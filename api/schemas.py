@@ -20,9 +20,13 @@ class EvalRequest(BaseModel):
     )
     n_samples: int = Field(
         default=25,
-        ge=5,
+        ge=1,
         le=200,
-        description="Number of SQuAD samples to evaluate. Must be between 5 and 200.",
+        description="Number of SQuAD samples to evaluate. Must be between 1 and 200.",
+    )
+    generator_provider: Literal["ollama", "openai"] = Field(
+        default="ollama",
+        description="LLM provider to use for generating answers in the RAG pipeline.",
     )
     judge_provider: Literal["ollama", "openai"] = Field(
         default="ollama",
